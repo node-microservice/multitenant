@@ -1,0 +1,11 @@
+{
+  "name": "node-multitenant",
+  "description": "",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "express": "4.x",
+    "supertest": "0.x",
+    "mocha": "1.x"
+  }
+}
