@@ -72,4 +72,13 @@ connectionStrategy: function(tenantInformation, done) {
 }
 ```
 
+Alternatively, it can be an object whose values are either functions or values, which are assigned to the `req` object using their respective key.
 
+```javascript
+connectionStrategy: {
+  foo: 'bar', // sets req.foo to 'bar'
+  baz: function(tenant, callback) {
+    callback(null, 'baz'); // sets req.baz to 'baz' - first argument is an error which will propagate to next(err)
+  }
+}
+```

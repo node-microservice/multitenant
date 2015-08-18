@@ -1,3 +1,4 @@
+var async = require('async');
 
 module.exports = function(options) {
   var opts = options || {};
@@ -29,10 +30,31 @@ module.exports = function(options) {
           return opts.onNotFound(req, res);
         }
 
-        opts.connectionStrategy(tenantInformation, function(connection){
-          req.tenantConnection = connection;
-          next();
-        });
+        if (typeof opts.connectionStrategy === 'function') {
+          opts.connectionStrategy(tenantInformation, function(connection){
+            req.tenantConnection = connection;
+            next();
+          });
+        } else if (typeof opts.connectionStrategy === 'object' && opts.connectionStrategy !== null) {
+          async.forEachOf(opts.connectionStrategy, function(value, key, callback) {
+            if (typeof value === 'function') {
+              value(tenantInformation, function(err, val) {
+                if (err) {
+                  callback(err);
+                  return;
+                }
+
+                req[key] = val;
+                callback();
+              });
+            } else {
+              req[key] = value;
+              callback();
+            }
+          }, next);
+        } else {
+          wrongTypeError('connectionStrategy', ['function', 'object']);
+        }
       });
     });
   };

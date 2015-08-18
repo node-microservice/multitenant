@@ -4,11 +4,12 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-	  "test": "mocha test"
+    "test": "mocha test"
   },
   "dependencies": {
+    "async": "^1.4.2",
     "express": "4.x",
-    "supertest": "0.x",
-    "mocha": "1.x"
+    "mocha": "1.x",
+    "supertest": "0.x"
   }
 }

@@ -85,6 +85,21 @@ describe('multiTenant', function() {
         done();
       });
     });
+
+    it('is an object', function(done) {
+      execute({
+        connectionStrategy: {
+          tenantHost: function(tenant, done) {
+            done(null, tenant.host);
+          },
+          tenantCompany: tenantObj.company
+        }
+      }, done, function(req, res) {
+        assert.equal(req.tenantHost, tenantObj.host);
+        assert.equal(req.tenantCompany, tenantObj.company);
+        done();
+      });
+    });
   });
 });
 
