@@ -3,6 +3,9 @@
   "description": "",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+	  "test": "mocha test"
+  },
   "dependencies": {
     "express": "4.x",
     "supertest": "0.x",
