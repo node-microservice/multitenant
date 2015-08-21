@@ -1,11 +1,23 @@
 {
-  "name": "node-multitenant",
+  "name": "@microservice/multitenant",
   "description": "",
-  "version": "0.0.1",
-  "private": true,
+  "version": "1.0.0",
   "scripts": {
     "test": "mocha test"
   },
+  "license": "MIT",
+  "author": "Doug Moscrop <doug.moscrop@gmail.com>",
+  "contributors": [{
+    "name": "Benjamin Michel",
+    "email": "benjamin.michel.cn@gmail.com"
+  }],
+  "repository": "https://github.com/node-microservice/multitenant.git",
+  "keywords": [
+    "multitenant",
+    "multitenancy",
+    "tenants",
+    "microservice"
+  ],
   "dependencies": {
     "async": "1.4.2"
   },

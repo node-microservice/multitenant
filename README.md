@@ -1,4 +1,4 @@
-express-multitenant
+microservice/multitenant
 ===================
 
 express middleware for multitenant achitecture
