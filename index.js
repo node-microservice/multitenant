@@ -30,8 +30,11 @@ module.exports = function(options) {
           return opts.onNotFound(req, res);
         }
 
+        tenantInformation._id = tenantId;
+
         if (typeof opts.connectionStrategy === 'function') {
           opts.connectionStrategy(tenantInformation, function(connection){
+            connection.tenant = tenantInformation;
             req.tenantConnection = connection;
             next();
           });
