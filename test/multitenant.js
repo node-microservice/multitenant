@@ -141,5 +141,5 @@ var execute = (function() {
         done();
       }
     });
-  }
+  };
 })();

@@ -1,15 +1,19 @@
-var async = require('async');
+var async = require('async'),
+  HttpError = require('http-errors');
 
 module.exports = function(options) {
   var opts = options || {};
 
-  opts.parseTenantId = opts.parseTenantId || _parseTenantId;
+  opts.tenantId = opts.tenantId || opts.parseTenantId || _tenantId;
 
-  if (typeof opts.parseTenantId !== 'function') {
-    wrongTypeError('parseTenantId', ['function']);
+  if (typeof opts.tenantId !== 'function') {
+    wrongTypeError('tenantId', ['function']);
   }
 
-  opts.tenants || missingPropertyError('tenants');
+  if (opts.tenants === undefined || opts.tenants === null) {
+    missingPropertyError('tenants');
+  }
+
   opts.fetchTenant = _fetchTenantWrapper(opts.tenants);
 
   opts.onNotFound = opts.onNotFound || _onNotFound;
@@ -18,16 +22,16 @@ module.exports = function(options) {
   opts.connectionStrategy = opts.connectionStrategy || _connectionStrategy;
 
   return function(req, res, next) {
-    opts.parseTenantId(req, function(tenantId) {
+    opts.tenantId(req, function(tenantId) {
 
       if (arguments.length === 0) {
-        return opts.onNoTenantKey(req, res);
+        return opts.onNoTenantKey(req, res, next);
       }
 
       opts.fetchTenant(tenantId, function(tenantInformation) {
 
         if (typeof tenantInformation === 'undefined') {
-          return opts.onNotFound(req, res);
+          return opts.onNotFound(req, res, next);
         }
 
         if (typeof opts.connectionStrategy === 'function') {
@@ -58,13 +62,13 @@ module.exports = function(options) {
       });
     });
   };
-}
+};
 
 /*
  * parse request to retrieve tenant key
  * defaults to subdomain
  */
-function _parseTenantId(req, done) {
+function _tenantId(req, done) {
   if (req.subdomains.length === 0) {
     return done();
   }
@@ -102,15 +106,15 @@ function _connectionStrategy(options, done) {
 /*
  * tenant cannot be found
  */
-function _onNotFound(req, res) {
-  res.send(404);
+function _onNotFound(req, res, next) {
+  next(new HttpError(400, 'tenant not found'));
 }
 
 /*
  * there is no key for tennant
  */
-function _onNoTenantKey(req, res) {
-  res.send(404);
+function _onNoTenantKey(req, res, next) {
+  next(new HttpError(400, 'no tenant key found'));
 }
 
 function missingPropertyError(property) {

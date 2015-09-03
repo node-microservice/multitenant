@@ -32,32 +32,32 @@ tenants: function(tenantId, done) {
 }
 ```
 
-##### parseTenantId (optional)
+##### tenantId (optional)
 
 Function which parses the request object and provides a callback with the tenantId. It defaults to the subdomain.
 ```javascript
-parseTenantId: function(request, done) {
-  var tenantID = extractTenantIdFromRequest(request); // some code to extract the tenantId from the request
+tenantId: function(request, done) {
+  var tenantId = extractTenantIdFromRequest(request); // some code to extract the tenantId from the request
   done(tenantId);
 }
 ```
 
 ##### onNotFound (optional)
 
-Called when the tenant cannot be found with the given tenantId. It is the last function of the middleware chain, it is passed a request and response as arguments. By default it sends a 404 error
+Called when the tenant cannot be found with the given tenantId. It is the last function of the middleware chain. By default it sends a 400 error
 
 ```javascript
-onNotFound: function(request, response) {
+onNotFound: function(request, response, next) {
   response.send('some error message');
 }
 ```
 
 ##### onNoTenantKey (optional)
 
-Called when the tenantId cannot be determined. It is the last function of the middleware chain, it is passed a request and response as arguments. By default it sends a 404 error
+Called when the tenantId cannot be determined. It is the last function of the middleware chain. By default it sends a 400 error
 
 ```javascript
-onNoTenantKey: function(request, response) {
+onNoTenantKey: function(request, response, next) {
   response.send('some error message');
 }
 ```
