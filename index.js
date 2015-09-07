@@ -1,126 +1,127 @@
 var async = require('async'),
+  context = require('request-context'),
   HttpError = require('http-errors');
 
 module.exports = function(options) {
-  var opts = options || {};
+  options = options || {};
 
-  opts.tenantId = opts.tenantId || opts.parseTenantId || _tenantId;
+  assertProperty(options, 'tenantId', ['function']);
+  assertProperty(options, 'tenants', ['object', 'function']);
 
-  if (typeof opts.tenantId !== 'function') {
-    wrongTypeError('tenantId', ['function']);
-  }
+  options.tenants = wrap(options.tenants);
+  options.context = options.context || {};
+  options.noTenantId = options.noTenantId || _noTenantId;
+  options.noTenantFound = options.noTenantFound || _noTenantFound;
 
-  if (opts.tenants === undefined || opts.tenants === null) {
-    missingPropertyError('tenants');
-  }
+  if (options.context && typeof options.context === 'object') {
+    Object.keys(options.context).forEach(function(key) {
+      assertProperty(options.context, key);
 
-  opts.fetchTenant = _fetchTenantWrapper(opts.tenants);
+      var val = options.context[key];
 
-  opts.onNotFound = opts.onNotFound || _onNotFound;
-  opts.onNoTenantKey = opts.onNoTenantKey || _onNoTenantKey;
-
-  opts.connectionStrategy = opts.connectionStrategy || _connectionStrategy;
-
-  return function(req, res, next) {
-    opts.tenantId(req, function(tenantId) {
-
-      if (arguments.length === 0) {
-        return opts.onNoTenantKey(req, res, next);
-      }
-
-      opts.fetchTenant(tenantId, function(tenantInformation) {
-
-        if (typeof tenantInformation === 'undefined') {
-          return opts.onNotFound(req, res, next);
-        }
-
-        if (typeof opts.connectionStrategy === 'function') {
-          opts.connectionStrategy(tenantInformation, function(connection){
-            req.tenantConnection = connection;
-            next();
-          });
-        } else if (typeof opts.connectionStrategy === 'object' && opts.connectionStrategy !== null) {
-          async.forEachOf(opts.connectionStrategy, function(value, key, callback) {
-            if (typeof value === 'function') {
-              value(tenantInformation, function(err, val) {
-                if (err) {
-                  callback(err);
-                  return;
-                }
-
-                req[key] = val;
-                callback();
-              });
-            } else {
-              req[key] = value;
-              callback();
-            }
-          }, next);
-        } else {
-          wrongTypeError('connectionStrategy', ['function', 'object']);
-        }
-      });
+      options.context[key] = async.ensureAsync(typeof val === 'function' ?
+        val : function(tenant, done) {
+          done(null, val);
+        });
     });
-  };
+  }
+
+  return [context.middleware('tenant'), function(req, res, next) {
+    async.waterfall([
+      function(callback) {
+        options.tenantId(req, function(err, tenantId) {
+          if (err) {
+            callback(err);
+            return;
+          }
+
+          if (tenantId) {
+            callback(null, tenantId);
+          } else {
+            options.noTenantId(req, res, next);
+          }
+        });
+      },
+      function(tenantId, callback) {
+        options.tenants(tenantId, function(err, tenant) {
+          if (err) {
+            callback(err);
+            return;
+          }
+
+          if (tenant) {
+            callback(null, tenantId, tenant);
+          } else {
+            options.noTenantFound(req, res, next);
+          }
+        });
+      },
+      function(tenantId, tenant, done) {
+        var tenantContext = {
+          id: tenantId
+        };
+
+        async.forEachOf(options.context, function(ctx, key, callback) {
+          ctx(tenant, function(err, val) {
+            if (err) {
+              callback(err);
+              return;
+            }
+            tenantContext[key] = val;
+            callback();
+          });
+        }, function(err) {
+          if (err) {
+            done(err);
+            return;
+          }
+
+          context.set('tenant', tenantContext);
+          done();
+        });
+      }
+    ], next);
+  }];
 };
 
-/*
- * parse request to retrieve tenant key
- * defaults to subdomain
- */
-function _tenantId(req, done) {
-  if (req.subdomains.length === 0) {
-    return done();
-  }
-  done(req.subdomains[req.subdomains.length - 1]);
-}
-
-/*
- * get the information associated to a tenant key
- * uses a list of tenants or a function to fetch them
- */
-function _fetchTenantWrapper(tenants) {
-  if (typeof tenants !== 'object' && typeof tenants !== 'function') {
-    wrongTypeError('tenants', ['object', 'function']);
-  }
-
-  return function(tenantId, done) {
-
+function wrap(tenants) {
+  return function(tenantId, callback) {
     if (typeof tenants === 'function') {
-      tenants(tenantId, done);
+      tenants(tenantId, callback);
     } else {
-      done(tenants[tenantId]);
+      callback(null, tenants[tenantId]);
     }
   };
 }
 
-/*
- * creates a database connection
- * pass the connection to the callback, and retrieves it in
- * 'res.tenantConnection'
- */
-function _connectionStrategy(options, done) {
-  done(options);
+function _noTenantId(req, res, next) {
+  next(new HttpError(400, 'no tenant id found'));
 }
 
-/*
- * tenant cannot be found
- */
-function _onNotFound(req, res, next) {
+function _noTenantFound(req, res, next) {
   next(new HttpError(400, 'tenant not found'));
 }
 
-/*
- * there is no key for tennant
- */
-function _onNoTenantKey(req, res, next) {
-  next(new HttpError(400, 'no tenant key found'));
-}
+function assertProperty(options, property, desiredTypes) {
+  var value = options[property];
 
-function missingPropertyError(property) {
-  throw new Error("A '" + property + "' property has to be specified");
-}
+  if (value) {
+    var type = typeof value;
 
-function wrongTypeError(property, desiredType) {
-  throw new Error("Propety '" + property + "' has to be of types [" + desiredType.join(',') + "]");
+    if (desiredTypes && desiredTypes.length) {
+      var valid = desiredTypes.some(function(desiredType) {
+        return desiredType === type;
+      });
+
+      if (valid) {
+        return;
+      }
+
+      throw new Error("Propety '" + property + "' has to be of types [" + desiredTypes.join(',') + "]");
+    } else {
+      return;
+    }
+  }
+
+  throw new Error("Property '" + property + "' has to be specified");
 }

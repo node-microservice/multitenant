@@ -1,145 +1,169 @@
-var multiTenant = require('..');
-var assert = require('assert');
+var assert = require('assert'),
+  context = require('request-context'),
+  supertest = require('supertest-as-promised'),
+  express = require('express'),
+  multitenant = require('..');
 
-var tenantObj = {
-  company: 'Blabla Inc.',
-  host: '143.89.123.8'
+var tenants = {
+  blah: {
+    company: 'Blabla Inc.',
+    host: '143.89.123.8'
+  }
 };
 
-describe('multiTenant', function() {
+var tenantId = function(req, done) {
+  done(null, 'blah');
+};
 
-  describe('.tenants', function() {
+describe('multitenant', function() {
 
-    it('is an object', function(done) {
-      execute({
-        tenants: {
-          bla: tenantObj
-        }
-      }, done);
+  describe('tenantId', function() {
+
+    it('must exist', function() {
+      assert.throws(function() {
+        return execute({
+          tenants: tenants
+        });
+      });
     });
 
-    it('is a function', function(done) {
-      execute({
+    it('gets added to context object', function() {
+      return execute({
+        tenantId: tenantId,
+        tenants: tenants
+      }, 200)
+      .then(function(tenant) {
+        assert.equal(tenant.id, 'blah');
+      });
+    });
+
+  });
+
+  describe('tenants', function() {
+
+    it('as an object', function() {
+      return execute({
+        tenantId: tenantId,
+        tenants: tenants
+      }, 200);
+    });
+
+    it('as a function', function() {
+      return execute({
+        tenantId: tenantId,
         tenants: function(tenantId, done) {
-          done(tenantObj);
+          done(null, tenants[tenantId]);
         }
-      }, done);
+      }, 200);
     });
   });
 
-  describe('.parseTenantId', function() {
+  describe('noTenantId', function() {
 
-    it('is a function', function(done) {
-      execute({
-        parseTenantId: function(req, done) {
-          if (req.subdomains.length === 0) {
-            return done();
-          }
-          done(req.subdomains[req.subdomains.length - 1]);
+    it('as default', function() {
+      return execute({
+        tenantId: function(req, done) {
+          done();
         }
-      }, done);
+      }, 400);
     });
-  });
 
-  describe('.onNotFound', function() {
-
-    it('is a function', function(done) {
-      execute({
-        tenants: {},
-        onNotFound: function(req, res) {
-          res.send('tenant not found');
-        }
-      }, done, function(data) {
-        assert.equal(data, 'tenant not found');
-        done();
-      });
-    });
-  });
-
-  describe('.onNoTenantKey', function() {
-
-    it('is a function', function(done) {
-      execute({
-        parseTenantId: function() {
-          arguments[1]();
+    it('as a function', function() {
+      return execute({
+        tenantId: function(req, done) {
+          done();
         },
-        onNoTenantKey: function(req, res) {
-          res.send('tenant key not found');
+        noTenantId: function(req, res) {
+          res.status(500).send();
         }
-      }, done, function(data) {
-        assert.equal(data, 'tenant key not found');
-        done();
-      });
+      }, 500);
     });
   });
 
-  describe('.connectionStrategy', function() {
+  describe('noTenantFound', function() {
 
-    it('is a function', function(done) {
-      execute({
-        connectionStrategy: function(options, done) {
-          done(options.host);
+    it('as default', function() {
+      return execute({
+        tenantId: tenantId,
+        tenants: {}
+      }, 400);
+    });
+
+    it('as a function', function() {
+      return execute({
+        tenantId: tenantId,
+        tenants: {},
+        noTenantFound: function(req, res, next) {
+          res.status(500).send();
         }
-      }, done, function(req, res) {
-        assert.equal(req.tenantConnection, tenantObj.host);
-        done();
+      }, 500);
+    });
+  });
+
+  describe('context', function() {
+
+    it('with a function', function() {
+      return execute({
+        tenantId: tenantId,
+        context: {
+          host: function(tenant, done) {
+            done(null, tenant.host);
+          }
+        }
+      }, 200)
+      .then(function(tenant) {
+        assert.equal(tenant.host, tenants.blah.host);
       });
     });
 
-    it('is an object', function(done) {
-      execute({
-        connectionStrategy: {
-          tenantHost: function(tenant, done) {
-            done(null, tenant.host);
-          },
-          tenantCompany: tenantObj.company
+    it('with a value', function() {
+      return execute({
+        tenantId: tenantId,
+        context: {
+          fixed: 'value'
         }
-      }, done, function(req, res) {
-        assert.equal(req.tenantHost, tenantObj.host);
-        assert.equal(req.tenantCompany, tenantObj.company);
-        done();
+      }, 200)
+      .then(function(tenant) {
+        assert.equal(tenant.fixed, 'value');
       });
+    });
+
+    it('with a failure', function() {
+      return execute({
+        tenantId: tenantId,
+        context: {
+          host: function(tenant, done) {
+            done(new Error());
+          }
+        }
+      }, 500);
     });
   });
 });
 
+function execute(config, status) {
+  config.tenants = config.tenants || tenants;
 
-/*
- * Simulate for connect
- */
-var execute = (function() {
-  function Request() {
-    // the order of subdomains is inverted
-    this.subdomains = ['test', 'bla'];
-  }
+  var tenant;
 
-  function Response(sendCallback) {
-    this.send = sendCallback || (function() {});
-  }
+  var server = express()
+    .use(multitenant(config))
+    .use(function(req, res, next) {
+      tenant = context.get('tenant');
 
-  return function(object, done, assertion) {
-    var args = object;
-
-    args.tenants = args.tenants || {
-      bla: tenantObj
-    };
-
-    var req = new Request();
-
-    var res;
-    if (typeof assertion === 'function') {
-      res = new Response(assertion);
-    } else {
-      res = new Response();
-    }
-
-    multiTenant(args)(req, res, function() {
-      if (typeof assertion === 'function') {
-        assertion(req, res);
-      } else {
-        assert.equal(req.tenantConnection, tenantObj);
-        done();
-      }
+      next();
+    })
+    .get('', function(req, res) {
+      res.status(200).send();
+    })
+    .use(function(err, req, res, next) {
+      res.status(err.status || 500).send();
     });
-  };
-})();
+
+  return supertest(server)
+    .get('')
+    .expect(status)
+    .then(function() {
+      return tenant;
+    });
+}
