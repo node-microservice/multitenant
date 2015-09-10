@@ -1,7 +1,7 @@
 {
   "name": "@microservice/multitenant",
   "description": "",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "scripts": {
     "test": "mocha test"
   },
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "express": "^4.13.3",
-    "mocha": "2.3.0",
+    "mocha": "2.3.2",
     "supertest-as-promised": "^2.0.2"
   }
 }

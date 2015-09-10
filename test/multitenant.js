@@ -11,8 +11,9 @@ var tenants = {
   }
 };
 
+var actualTenantId = 'blah';
 var tenantId = function(req, done) {
-  done(null, 'blah');
+  done(null, actualTenantId);
 };
 
 describe('multitenant', function() {
@@ -101,6 +102,23 @@ describe('multitenant', function() {
   });
 
   describe('context', function() {
+
+    it('has a tenantId on the tenant', function() {
+      var foundId;
+
+      return execute({
+        tenantId: tenantId,
+        context: {
+          host: function(tenant, done) {
+            foundId = tenant.id;
+            done(null, tenant.host);
+          }
+        }
+      }, 200)
+      .then(function(tenant) {
+        assert.equal(foundId, actualTenantId);
+      });
+    });
 
     it('with a function', function() {
       return execute({

@@ -50,15 +50,16 @@ module.exports = function(options) {
           }
 
           if (tenant) {
-            callback(null, tenantId, tenant);
+            tenant.id = tenantId;
+            callback(null, tenant);
           } else {
             options.noTenantFound(req, res, next);
           }
         });
       },
-      function(tenantId, tenant, done) {
+      function(tenant, done) {
         var tenantContext = {
-          id: tenantId
+          id: tenant.id
         };
 
         async.forEachOf(options.context, function(ctx, key, callback) {
