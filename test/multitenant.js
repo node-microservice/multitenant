@@ -1,4 +1,5 @@
 var assert = require('assert'),
+  cls = require('continuation-local-storage'),
   context = require('request-context'),
   supertest = require('supertest-as-promised'),
   express = require('express'),
@@ -159,6 +160,21 @@ describe('multitenant', function() {
   });
 });
 
+describe('namespace', function() {
+  it('with a value', function() {
+    return execute({
+      tenantId: tenantId,
+      ns: 'request',
+      context: {
+        fixed: 'value'
+      }
+    }, 200, true)
+    .then(function(tenant) {
+      assert.equal(tenant.fixed, 'value');
+    });
+  });
+});
+
 function execute(config, status) {
   config.tenants = config.tenants || tenants;
 
@@ -167,13 +183,19 @@ function execute(config, status) {
   var server = express()
     .use(multitenant(config))
     .use(function(req, res, next) {
-      tenant = context.get('tenant');
+      if (config.ns) {
+        var ns = cls.getNamespace('request');
+        tenant = ns.get('tenant');
+      } else {
+        tenant = context.get('tenant');
+      }
 
       next();
     })
     .get('', function(req, res) {
       res.status(200).send();
     })
+    /* eslint no-unused-vars: 0 */
     .use(function(err, req, res, next) {
       res.status(err.status || 500).send();
     });
@@ -182,6 +204,10 @@ function execute(config, status) {
     .get('')
     .expect(status)
     .then(function() {
-      return tenant;
+      return new global.Promise(function(resolve) {
+        setTimeout(function() {
+          resolve(tenant);
+        }, 10);
+      });
     });
 }
